@@ -1,6 +1,6 @@
 #include <SoftwareSerial.h> // EspSoftwareSerial
 
-SoftwareSerial mySerial(D7, D6); // RX, TX
+SoftwareSerial mySerial(D3, D7); // RX, TX
 
 void setup() {
   Serial.begin(9600);
