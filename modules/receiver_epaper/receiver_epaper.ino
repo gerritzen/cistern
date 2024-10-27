@@ -93,7 +93,7 @@ void OnRxDone( uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr )
   display.clearMemory();
   drawAxes();
   drawPlot();
-  drawTank(values[NUM_READINGS - 2]);
+  drawTank(values[NUM_READINGS - 1]);
   display.update();
 
   lora_idle = true;
@@ -137,6 +137,8 @@ void drawTank(unsigned char percent) {
   String text = String(percent) + " %";
   if (percent > 100)
     text = "???";
+  if (percent == 100)
+    text = "100%"; // no space for consistent width
   display.drawRect(208, 60, 74, 50, BLACK);
   if (percent < 100)
     display.fillRect(208, 60 + 50 - percent / 2, 74, percent / 2, BLACK);

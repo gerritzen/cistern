@@ -47,23 +47,23 @@ void setup() {
 
 
 void loop() {
-//  Serial.print("Sending packet: ");
-//  Serial.print(counter);
-//  Serial.print(": ");
-//  Serial.println(readDistance());
+  //  Serial.print("Sending packet: ");
+  //  Serial.print(counter);
+  //  Serial.print(": ");
+  //  Serial.println(readDistance());
   uint16_t distance = readDistance();
   push_back(to8b(distance));
   // send packet
   LoRa.beginPacket();
-//  LoRa.print(counter);
-//  LoRa.print(": distance ");
-//  Serial.println(distance);
-//  LoRa.write("0x38");
+  //  LoRa.print(counter);
+  //  LoRa.print(": distance ");
+  //  Serial.println(distance);
+  //  LoRa.write("0x38");
   dumpBufferToLora();
-//  LoRa.print(readDistance());
+  //  LoRa.print(readDistance());
   LoRa.endPacket();
-//  counter++;
-//  sleep(2);
+  //  counter++;
+  //  sleep(2);
   sleepSeconds(10);
 }
 
@@ -78,24 +78,24 @@ uint16_t readDistance() {
     if (buf[0] == 255) {
       distance = (buf[1] << 8) + buf[2];
       if (((buf[1] + buf[2] - 1) & 0xFF) != buf[3]) {
-//        Serial.println("Invalid result");
+        //        Serial.println("Invalid result");
         return 6016;
       }
       else if (distance == 6016) {
-//        Serial.println("Distance [mm]: NaN");
+        //        Serial.println("Distance [mm]: NaN");
       } else {
-//        Serial.print("Distance [mm]: ");
-//        Serial.println(distance);
+        //        Serial.print("Distance [mm]: ");
+        //        Serial.println(distance);
       }
     }
   } else {
-//    Serial.println("No mySerial");
+    //    Serial.println("No mySerial");
   }
   return (distance);
 }
 
 void sleepSeconds(int s) {
-//  Serial.printf("Sleeping for %d s.\n", s);
+  //  Serial.printf("Sleeping for %d s.\n", s);
   LoRa.sleep();
   esp_sleep_enable_timer_wakeup(s * 1e6);
   esp_deep_sleep_start();
@@ -125,7 +125,7 @@ void dumpBufferToSerial() {
     Serial.print(ringbuffer[i], DEC);
     Serial.print(", ");
   }
-  Serial.print("\n");
+  Serial.println(ringbuffer[(nextIndex - 1 + NUM_READINGS) % NUM_READINGS]);
 }
 
 void dumpBufferToLora() {
@@ -133,4 +133,5 @@ void dumpBufferToLora() {
   for (int i = nextIndex; i != (nextIndex - 1 + NUM_READINGS) % NUM_READINGS; (i = (i + 1) % NUM_READINGS)) {
     LoRa.write(ringbuffer[i]);
   }
+  LoRa.write(ringbuffer[(nextIndex - 1 + NUM_READINGS) % NUM_READINGS]);
 }
