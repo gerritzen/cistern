@@ -51,6 +51,7 @@ Even at $n=1$, the values are typically contained within 4mm. Considering that i
 - [x] Waterproof sensor
 - [x] LoRa
 - [x] Ring buffer
-- [ ] Displaying the values
+- [x] Displaying the values
 - [ ] Battery charging and operation
+- [ ] Battery percentage monitoring (requires soldering)
 
