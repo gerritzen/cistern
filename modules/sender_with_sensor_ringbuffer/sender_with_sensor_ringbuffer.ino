@@ -1,3 +1,7 @@
+/*
+ * Board: ESP32 Arduino -> XIAO_ESP32C6
+ */
+
 #include <SPI.h>
 #include <LoRa.h> /* https://github.com/sandeepmistry/arduino-LoRa/blob/master/API.md */
 #include <SoftwareSerial.h> // EspSoftwareSerial
@@ -83,6 +87,7 @@ void loop() {
     LoRa.beginPacket();
     if (wakeupCounter % 9 == 0) {
       LoRa.write(ID_DAILY);
+      LoRa.write(to8b(distance));
       dumpBufferToLora(ringbuffer1d, &nextIndex1d);
       #if PRINTTOSERIAL == 1
       Serial.println("Day:");
@@ -90,6 +95,7 @@ void loop() {
       #endif
     } else if (wakeupCounter % 9 == 3) {
       LoRa.write(ID_WEEKLY);
+      LoRa.write(to8b(distance));
       dumpBufferToLora(ringbuffer1w, &nextIndex1w);
       #if PRINTTOSERIAL == 1
       Serial.println("Week:");
@@ -97,6 +103,7 @@ void loop() {
       #endif
     } else if (wakeupCounter % 9 == 6) {
       LoRa.write(ID_MONTHLY);
+      LoRa.write(to8b(distance));
       dumpBufferToLora(ringbuffer1m, &nextIndex1m);
       #if PRINTTOSERIAL == 1
       Serial.println("Month:");

@@ -29,6 +29,9 @@ So, even though the distance sensor has a resolution of ~10b (?), we can safely 
 the readings to 8b before transmission.
 That allows to send 168 readings in a single <255b LoRa packet without any bit packing shenanigans.
 
+## Different time scales
+I am keeping three 168-reading buffers with time spans of approximately 1 day, 1 week and 1 month. Every few minutes, one of the buffers is transmitted. The first byte denotes the type of buffer, `D1` for daily, `D7` for weekly and `DD` for monthly data. The next byte denotes the latest reading, which is used to show the **current** fill level. The next 168 bytes show the time history.
+
 # How many times to measure the distance?
 I noticed a huge variance in the sensor readings. If the variance was due to random, independent noise, measuring $n$ times and averaging the result would reduce the  Here's the variance by a factor $n$.
 I find the standard deviation to be a more useful quantity, as it has the same dimension as the value itself.
