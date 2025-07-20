@@ -31,7 +31,9 @@ EInkDisplay_VisionMasterE290 display;
 
 char txpacket[BUFFER_SIZE];
 char rxpacket[BUFFER_SIZE];
-uint8_t values[NUM_READINGS];
+uint8_t values1d[NUM_READINGS];
+uint8_t values1w[NUM_READINGS];
+uint8_t values1m[NUM_READINGS];
 
 static RadioEvents_t RadioEvents;
 
@@ -44,7 +46,7 @@ bool lora_idle = true;
 void setup() {
   display.setRotation(270);                // Rotate 90deg clocklwise - more room
   DRAW (display) {
-    display.print("LoRa Receiver!");
+    display.print("Waiting for first transmission");
   }
   Serial.begin(115200);
   Mcu.begin(HELTEC_BOARD, SLOW_CLK_TPYE);
@@ -80,20 +82,40 @@ void OnRxDone( uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr )
   rxSize = size;
   memcpy(rxpacket, payload, size );
   rxpacket[size] = '\0';
-  memcpy(values, payload, size);
+  switch (rxpacket[0]) {
+    case ID_DAILY:
+      memcpy(values1d, payload+1, size); // +2
+      display.clearMemory();
+      drawPlot(values1d);
+      display.setCursor(70, 120);
+      display.print("Last day");
+      break;
+    case ID_WEEKLY:
+      memcpy(values1w, payload+1, size); // +2
+      display.clearMemory();
+      drawPlot(values1w);
+      display.setCursor(70, 120);
+      display.print("Last week");
+      break;
+    case ID_MONTHLY:
+      memcpy(values1m, payload+1, size); // +2
+      display.clearMemory();
+      drawPlot(values1m);
+      display.setCursor(70, 120);
+      display.print("Last week");
+      break;
+    default:
+      Serial.println("Invalid package.");
+      
+  }
   Radio.Sleep( );
   Serial.printf("\r\nreceived packet \"%s\" with rssi %d , length %d\r\n", rxpacket, rssi, rxSize);
   for (int i = 0; i < size; i++) {
     Serial.print(rxpacket[i], DEC);
     Serial.print(" ");
   }
-  //  DRAW (display) {
-  //    display.print(rxpacket);
-  //  }
-  display.clearMemory();
   drawAxes();
-  drawPlot();
-  drawTank(values[NUM_READINGS - 1]);
+  drawTank(rxpacket[NUM_READINGS - 2]); //rxpacket
   display.update();
 
   lora_idle = true;
@@ -119,7 +141,7 @@ void drawAxes() {
   display.print(" 25");
 }
 
-void drawPlot() {
+void drawPlot(uint8_t* values) {
   for (int i = 1; i < NUM_READINGS; i++) {
     unsigned char offset_x = 24;
     unsigned char offset_y = 14;

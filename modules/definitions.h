@@ -4,3 +4,6 @@
 #define LORA_BANDWIDTH 125E3
 #define LORA_CODING_RATE 6
 #define LORA_PREAMBLE_LENGTH 8
+#define ID_DAILY   0xD1
+#define ID_WEEKLY  0xD7
+#define ID_MONTHLY 0xDD

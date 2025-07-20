@@ -2,13 +2,20 @@
 #include <LoRa.h> /* https://github.com/sandeepmistry/arduino-LoRa/blob/master/API.md */
 #include <SoftwareSerial.h> // EspSoftwareSerial
 #include "../definitions.h"
+#define DEEPSLEEP 0
+#define PRINTTOSERIAL 1
 
 SoftwareSerial mySerial(D3, D7); // RX, TX
 
 int counter = 0;
-RTC_DATA_ATTR uint8_t ringbuffer[NUM_READINGS];
-RTC_DATA_ATTR int8_t nextIndex = 0;
+RTC_DATA_ATTR uint8_t ringbuffer1d[NUM_READINGS];
+RTC_DATA_ATTR uint8_t ringbuffer1w[NUM_READINGS];
+RTC_DATA_ATTR uint8_t ringbuffer1m[NUM_READINGS];
+RTC_DATA_ATTR uint16_t nextIndex1d = 0;
+RTC_DATA_ATTR uint16_t nextIndex1w = 0;
+RTC_DATA_ATTR uint16_t nextIndex1m = 0;
 RTC_DATA_ATTR bool firstBoot = true;
+RTC_DATA_ATTR uint32_t wakeupCounter = 0;
 
 void setup() {
 
@@ -39,7 +46,9 @@ void setup() {
   if (firstBoot) {
     // Initialize array to unreasonable values
     for (int i = 0; i < NUM_READINGS; i++) {
-      ringbuffer[i] = 0xFF;
+      ringbuffer1d[i] = 0xFF;
+      ringbuffer1w[i] = 0xFF;
+      ringbuffer1m[i] = 0xFF;
     }
     firstBoot = false;
   }
@@ -47,24 +56,64 @@ void setup() {
 
 
 void loop() {
-  //  Serial.print("Sending packet: ");
-  //  Serial.print(counter);
-  //  Serial.print(": ");
-  //  Serial.println(readDistance());
   uint16_t distance = readDistance();
-  push_back(to8b(distance));
-  // send packet
-  LoRa.beginPacket();
-  //  LoRa.print(counter);
-  //  LoRa.print(": distance ");
-  //  Serial.println(distance);
-  //  LoRa.write("0x38");
-  dumpBufferToLora();
-  //  LoRa.print(readDistance());
-  LoRa.endPacket();
-  //  counter++;
-  //  sleep(2);
-  sleepSeconds(10);
+
+  if (wakeupCounter % 3 == 0) {
+    push_back(to8b(distance), ringbuffer1d, &nextIndex1d);
+    push_back(to8b(distance)+1, ringbuffer1d, &nextIndex1d);
+    push_back(to8b(distance), ringbuffer1d, &nextIndex1d);
+    push_back(to8b(distance)-1, ringbuffer1d, &nextIndex1d);
+  }
+  
+  if (wakeupCounter % 20 == 0) {
+    push_back(to8b(distance), ringbuffer1w, &nextIndex1w);
+    push_back(to8b(distance), ringbuffer1w, &nextIndex1w);
+    push_back(to8b(distance), ringbuffer1w, &nextIndex1w);
+    push_back(to8b(distance), ringbuffer1w, &nextIndex1w);
+  }
+  
+  if (wakeupCounter % 80 == 0) {
+    push_back(to8b(distance), ringbuffer1m, &nextIndex1m);
+    push_back(to8b(distance)+2, ringbuffer1m, &nextIndex1m);
+    push_back(to8b(distance), ringbuffer1m, &nextIndex1m);
+    push_back(to8b(distance)-2, ringbuffer1m, &nextIndex1m);
+  }
+
+  if (wakeupCounter % 3 == 0) {
+    LoRa.beginPacket();
+    if (wakeupCounter % 9 == 0) {
+      LoRa.write(ID_DAILY);
+      dumpBufferToLora(ringbuffer1d, &nextIndex1d);
+      #if PRINTTOSERIAL == 1
+      Serial.println("Day:");
+      dumpBufferToSerial(ringbuffer1d, &nextIndex1d);
+      #endif
+    } else if (wakeupCounter % 9 == 3) {
+      LoRa.write(ID_WEEKLY);
+      dumpBufferToLora(ringbuffer1w, &nextIndex1w);
+      #if PRINTTOSERIAL == 1
+      Serial.println("Week:");
+      dumpBufferToSerial(ringbuffer1w, &nextIndex1w);
+      #endif
+    } else if (wakeupCounter % 9 == 6) {
+      LoRa.write(ID_MONTHLY);
+      dumpBufferToLora(ringbuffer1m, &nextIndex1m);
+      #if PRINTTOSERIAL == 1
+      Serial.println("Month:");
+      dumpBufferToSerial(ringbuffer1m, &nextIndex1m);
+      #endif
+
+    }
+    LoRa.endPacket();
+  }
+    //  counter++;
+    //  sleep(2);
+  #if PRINTTOSERIAL == 1
+  Serial.print("Wakeup Counter: ");
+  Serial.println(wakeupCounter);
+  #endif
+  wakeupCounter++;
+  sleepSeconds(3); // 180
 }
 
 uint16_t readDistance() {
@@ -82,10 +131,14 @@ uint16_t readDistance() {
         return 6016;
       }
       else if (distance == 6016) {
-        //        Serial.println("Distance [mm]: NaN");
+#if PRINTTOSERIAL == 1
+                Serial.println("Distance [mm]: NaN");
+#endif
       } else {
-        //        Serial.print("Distance [mm]: ");
-        //        Serial.println(distance);
+#if PRINTTOSERIAL == 1
+                Serial.print("Distance [mm]: ");
+                Serial.println(distance);
+#endif
       }
     }
   } else {
@@ -96,9 +149,13 @@ uint16_t readDistance() {
 
 void sleepSeconds(int s) {
   //  Serial.printf("Sleeping for %d s.\n", s);
+#if DEEPSLEEP == 1
   LoRa.sleep();
   esp_sleep_enable_timer_wakeup(s * 1e6);
   esp_deep_sleep_start();
+#else
+  sleep(s);
+#endif
 }
 
 uint8_t to8b(uint16_t d) {
@@ -113,25 +170,24 @@ uint8_t to8b(uint16_t d) {
   return (DEPTH_CISTERN - d) / (DEPTH_CISTERN / 100);
 }
 
-// tested and works
-void push_back(uint8_t d) {
-  ringbuffer[nextIndex] = d;
-  nextIndex = (nextIndex + 1) % NUM_READINGS;
+void push_back(uint8_t d, uint8_t* buf, uint16_t* index) {
+  buf[*index] = d;
+  *index = (*index + 1) % NUM_READINGS;
 }
 
-void dumpBufferToSerial() {
+void dumpBufferToSerial(uint8_t* buf, uint16_t* index) {
   Serial.println("Buffer dump:");
-  for (int i = nextIndex; i != (nextIndex - 1 + NUM_READINGS) % NUM_READINGS; (i = (i + 1) % NUM_READINGS)) {
-    Serial.print(ringbuffer[i], DEC);
+  for (int i = *index; i != (*index - 1 + NUM_READINGS) % NUM_READINGS; (i = (i + 1) % NUM_READINGS)) {
+    Serial.print(buf[i], DEC);
     Serial.print(", ");
   }
-  Serial.println(ringbuffer[(nextIndex - 1 + NUM_READINGS) % NUM_READINGS]);
+  Serial.println(buf[(*index - 1 + NUM_READINGS) % NUM_READINGS]);
 }
 
-void dumpBufferToLora() {
+void dumpBufferToLora(uint8_t* buf, uint16_t* index) {
   // needs   LoRa.beginPacket(); and endPacket()!
-  for (int i = nextIndex; i != (nextIndex - 1 + NUM_READINGS) % NUM_READINGS; (i = (i + 1) % NUM_READINGS)) {
-    LoRa.write(ringbuffer[i]);
+  for (int i = *index; i != (*index - 1 + NUM_READINGS) % NUM_READINGS; (i = (i + 1) % NUM_READINGS)) {
+    LoRa.write(buf[i]);
   }
-  LoRa.write(ringbuffer[(nextIndex - 1 + NUM_READINGS) % NUM_READINGS]);
+  LoRa.write(buf[(*index - 1 + NUM_READINGS) % NUM_READINGS]);
 }
