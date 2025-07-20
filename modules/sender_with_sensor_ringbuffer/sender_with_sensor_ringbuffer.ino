@@ -6,12 +6,18 @@
 #include <LoRa.h> /* https://github.com/sandeepmistry/arduino-LoRa/blob/master/API.md */
 #include <SoftwareSerial.h> // EspSoftwareSerial
 #include "../definitions.h"
+
 #define DEEPSLEEP 0
 #define PRINTTOSERIAL 1
 
-SoftwareSerial mySerial(D3, D7); // RX, TX
+const int LORA_SS_PIN    = D6;
+const int LORA_RST_PIN   = D5;
+const int LORA_DIO0_PIN  = D4;
+const int SERIAL_RX_PIN  = D3;
+const int SERIAL_TX_PIN  = D7;
 
-int counter = 0;
+SoftwareSerial mySerial(SERIAL_RX_PIN, SERIAL_TX_PIN);
+
 RTC_DATA_ATTR uint8_t ringbuffer1d[NUM_READINGS];
 RTC_DATA_ATTR uint8_t ringbuffer1w[NUM_READINGS];
 RTC_DATA_ATTR uint8_t ringbuffer1m[NUM_READINGS];
@@ -30,7 +36,7 @@ void setup() {
 
   Serial.println("LoRa Sender");
 
-  LoRa.setPins(D6, D5, D4);
+  LoRa.setPins(LORA_SS_PIN, LORA_RST_PIN, LORA_DIO0_PIN);
   if (!LoRa.begin(433E6)) {
     Serial.println("Starting LoRa failed!");
     ESP.restart();
@@ -49,11 +55,9 @@ void setup() {
 
   if (firstBoot) {
     // Initialize array to unreasonable values
-    for (int i = 0; i < NUM_READINGS; i++) {
-      ringbuffer1d[i] = 0xFF;
-      ringbuffer1w[i] = 0xFF;
-      ringbuffer1m[i] = 0xFF;
-    }
+    memset(ringbuffer1d, 0xFF, NUM_READINGS);
+    memset(ringbuffer1w, 0xFF, NUM_READINGS);
+    memset(ringbuffer1m, 0xFF, NUM_READINGS);
     firstBoot = false;
   }
 }
@@ -113,8 +117,6 @@ void loop() {
     }
     LoRa.endPacket();
   }
-    //  counter++;
-    //  sleep(2);
   #if PRINTTOSERIAL == 1
   Serial.print("Wakeup Counter: ");
   Serial.println(wakeupCounter);
@@ -176,6 +178,70 @@ uint8_t to8b(uint16_t d) {
     return 0;
   return (DEPTH_CISTERN - d) / (DEPTH_CISTERN / 100);
 }
+
+void handleDataLogging(uint8_t level) {
+  // Every 3 ticks (9 minutes)
+  if (wakeupCounter % 3 == 0) {
+    push_back(level, ringbuffer1d, &nextIndex1d);
+    push_back(level + 1, ringbuffer1d, &nextIndex1d);
+    push_back(level, ringbuffer1d, &nextIndex1d);
+    push_back(level - 1, ringbuffer1d, &nextIndex1d);
+  }
+  
+  // Every 20 ticks (1 hour)
+  if (wakeupCounter % 20 == 0) {
+    push_back(level, ringbuffer1w, &nextIndex1w);
+  }
+  
+  // Every 80 ticks (4 hours)
+  if (wakeupCounter % 80 == 0) {
+    push_back(level, ringbuffer1m, &nextIndex1m);
+  }
+}
+
+void handleDataTransmission(uint8_t level) {
+  // We only transmit every 9 ticks (27 seconds)
+  if (wakeupCounter % 9 != 0) return;
+
+  uint8_t packetId = 0;
+  uint8_t* bufferToDump = nullptr;
+  uint16_t* indexToDump = nullptr;
+  const char* logType = "";
+
+  // Decide WHICH buffer to send, but don't send it yet
+  if (wakeupCounter % 27 == 0) { // Stagger the sends
+      packetId = ID_DAILY;
+      bufferToDump = ringbuffer1d;
+      indexToDump = &nextIndex1d;
+      logType = "Day";
+  } else if (wakeupCounter % 27 == 9) {
+      packetId = ID_WEEKLY;
+      bufferToDump = ringbuffer1w;
+      indexToDump = &nextIndex1w;
+      logType = "Week";
+  } else if (wakeupCounter % 27 == 18) {
+      packetId = ID_MONTHLY;
+      bufferToDump = ringbuffer1m;
+      indexToDump = &nextIndex1m;
+      logType = "Month";
+  }
+
+  // If a buffer was selected, build and send the packet
+  if (bufferToDump != nullptr) {
+    LoRa.beginPacket();
+    LoRa.write(packetId);
+    LoRa.write(level);
+    dumpBufferToLora(bufferToDump, indexToDump);
+    LoRa.endPacket();
+
+    #if PRINTTOSERIAL == 1
+      Serial.printf("--- Transmitted %s Packet ---\n", logType);
+      dumpBufferToSerial(bufferToDump, indexToDump);
+      Serial.println("--------------------------");
+    #endif
+  }
+}
+
 
 void push_back(uint8_t d, uint8_t* buf, uint16_t* index) {
   buf[*index] = d;
