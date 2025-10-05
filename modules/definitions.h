@@ -1,5 +1,5 @@
 #define NUM_READINGS 168
-#define DEPTH_CISTERN 1000 //mm
+#define DEPTH_CISTERN 640 //mm
 #define LORA_SPREADING_FACTOR 7
 #define LORA_BANDWIDTH 125E3
 #define LORA_CODING_RATE 6
@@ -7,3 +7,5 @@
 #define ID_DAILY   0xD1
 #define ID_WEEKLY  0xD7
 #define ID_MONTHLY 0xDD
+#define DEEPSLEEP             1   // For sender
+#define PRINTTOSERIAL         0

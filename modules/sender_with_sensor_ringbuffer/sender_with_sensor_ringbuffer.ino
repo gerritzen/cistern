@@ -14,8 +14,6 @@
 // =================================================================
 // ==                      CONFIGURATION                          ==
 // =================================================================
-#define DEEPSLEEP             1   // Set to 1 to enable deep sleep, 0 for light sleep
-#define PRINTTOSERIAL         0   // Set to 1 to enable Serial output for debugging
 
 // -- Timing Configuration --
 // The "base tick" of the system, in seconds. The device wakes up, runs the loop, then sleeps for this duration.
@@ -75,6 +73,7 @@ void setup() {
   LoRa.setPins(LORA_SS_PIN, LORA_RST_PIN, LORA_DIO0_PIN);
   if (!LoRa.begin(433E6)) {
     Serial.println("FATAL: Starting LoRa failed!");
+    delay(1000);
     ESP.restart();
   }
   LoRa.setTxPower(2);
@@ -192,13 +191,11 @@ void sleepSeconds(int s) {
 }
 
 void push_back(uint8_t d, uint8_t* buf, uint16_t* index) {
-  // ... (function body is unchanged)
   buf[*index] = d;
   *index = (*index + 1) % NUM_READINGS;
 }
 
 void dumpBufferToLora(uint8_t* buf, uint16_t* index) {
-  // ... (function body is unchanged)
   for (int i = *index; i != (*index - 1 + NUM_READINGS) % NUM_READINGS; (i = (i + 1) % NUM_READINGS)) {
     LoRa.write(buf[i]);
   }
@@ -206,7 +203,6 @@ void dumpBufferToLora(uint8_t* buf, uint16_t* index) {
 }
 
 void dumpBufferToSerial(uint8_t* buf, uint16_t* index) {
-  // ... (function body is unchanged)
   Serial.print("Buffer Dump: ");
   for (int i = *index; i != (*index - 1 + NUM_READINGS) % NUM_READINGS; (i = (i + 1) % NUM_READINGS)) {
     Serial.printf("%d,", buf[i]);

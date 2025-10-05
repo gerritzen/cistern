@@ -1,3 +1,4 @@
+
 /*
  * Board: ESP32 Arduino -> Vision Master E290
  */
@@ -248,8 +249,13 @@ void drawPlot(const uint8_t* values) {
 }
 
 void drawTank(uint8_t percent) {
+  #if PRINTTOSERIAL == 1
+    Serial.printf("Last percentage: %i\n", percent);
+  #endif
   String text;
-  if (percent > 100) {
+  if (percent == 255) {
+    text = "Fail";
+  } else if (percent > 100) {
     text = "???";
   } else if (percent == 100) {
     text = "100%"; // Consistent width
