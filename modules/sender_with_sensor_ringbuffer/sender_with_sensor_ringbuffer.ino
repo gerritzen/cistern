@@ -154,28 +154,53 @@ void loop() {
 // =================================================================
 
 uint16_t readDistance() {
-  uint16_t distance = 6016;
-  mySerial.write(0x01);
-  delay(50);
-  if (mySerial.available()) {
-    byte buf[4];
-    mySerial.readBytes(buf, 4);
-    if (buf[0] == 255) {
-      distance = (buf[1] << 8) + buf[2];
-      if (((buf[1] + buf[2] - 1) & 0xFF) != buf[3]) {
-        return 6016; // Checksum error
+  const int MAX_RETRIES = 5;
+  const int RETRY_DELAY_MS = 200;
+  // AJ-SR04M max reliable range is ~4500mm; anything above is a missed echo
+  const uint16_t MAX_PLAUSIBLE_DISTANCE = 2000; // mm — cistern is 640mm deep, 2m is generous
+
+  for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    // Drain any stale data in the buffer
+    while (mySerial.available()) mySerial.read();
+
+    mySerial.write(0x01);
+    delay(50);
+    if (mySerial.available() >= 4) {
+      byte buf[4];
+      mySerial.readBytes(buf, 4);
+      if (buf[0] == 255 && ((buf[1] + buf[2] - 1) & 0xFF) == buf[3]) {
+        uint16_t distance = (buf[1] << 8) + buf[2];
+        if (distance <= MAX_PLAUSIBLE_DISTANCE) {
+          #if PRINTTOSERIAL == 1
+            Serial.printf("Distance: %d mm (attempt %d)\n", distance, attempt + 1);
+          #endif
+          return distance;
+        }
+        #if PRINTTOSERIAL == 1
+          Serial.printf("Implausible reading: %d mm, attempt %d/%d\n", distance, attempt + 1, MAX_RETRIES);
+        #endif
+      } else {
+        #if PRINTTOSERIAL == 1
+          Serial.printf("Bad checksum/header, attempt %d/%d\n", attempt + 1, MAX_RETRIES);
+        #endif
       }
+    } else {
+      #if PRINTTOSERIAL == 1
+        Serial.printf("No sensor response, attempt %d/%d\n", attempt + 1, MAX_RETRIES);
+      #endif
     }
+    delay(RETRY_DELAY_MS);
   }
+
   #if PRINTTOSERIAL == 1
-    Serial.printf("Distance reading: %d mm\n", distance);
+    Serial.println("Sensor read failed after all retries");
   #endif
-  return distance;
+  return DISTANCE_ERROR;
 }
 
 uint8_t to8b(uint16_t d) {
   if (d < 200) return 100;
-  if (d == 6016) return 0xFF; // Error value
+  if (d == DISTANCE_ERROR) return 0xFF;
   if (d > DEPTH_CISTERN) return 0;
   return (uint8_t)((DEPTH_CISTERN - d) / (DEPTH_CISTERN / 100.0));
 }
